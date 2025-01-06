@@ -7,10 +7,11 @@ import { PiKnifeLight } from 'react-icons/pi'
 import { AiOutlineLoading } from 'react-icons/ai'
 import Image from 'next/image'
 import { appwriteService } from '@/lib/appwriteService'
+import { Models } from 'appwrite'
 
 export default function Upload() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null)
   const [fileDisplay, setFileDisplay] = useState<string>('')
   const [caption, setCaption] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
@@ -88,20 +89,14 @@ export default function Upload() {
       setIsUploading(true)
       setError(null)
 
-      console.log('Starting file upload...')
       // Upload the video file
       const fileId = await appwriteService.uploadFile(file)
-      console.log('File uploaded successfully. File ID:', fileId)
 
       // Get the file URL
-      console.log('Getting file view URL...')
       const fileViewUrl = appwriteService.getFileView(fileId)
-      console.log('File view URL:', fileViewUrl.href)
 
       // Create the post
-      console.log('Creating post...')
-      const post = await appwriteService.createPost(user.$id, fileViewUrl.href, caption)
-      console.log('Post created successfully:', post)
+      await appwriteService.createPost(user.$id, fileViewUrl, caption)
 
       router.push('/')
     } catch (err) {
@@ -171,7 +166,6 @@ export default function Upload() {
                     height={458}
                     className="absolute top-0 left-0 z-20 pointer-events-none"
                     priority
-                    style={{ width: 'auto', height: 'auto' }}
                   />
                   <video
                     ref={videoRef}
@@ -269,6 +263,8 @@ export default function Upload() {
     </div>
   )
 }
+
+
 
 
 

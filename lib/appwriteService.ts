@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Storage, ID, Query } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, Models, OAuthProvider } from 'appwrite';
 
 let client: Client;
 let account: Account;
@@ -11,12 +11,6 @@ const databaseId = process.env.NEXT_PUBLIC_DATABASE_ID as string;
 const initializeAppwrite = () => {
   const endpoint = process.env.NEXT_PUBLIC_ENDPOINT;
   const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
-
-  console.log('Initializing with:', { endpoint, projectId, databaseId });
-
-  if (!endpoint) console.error('Missing NEXT_PUBLIC_ENDPOINT');
-  if (!projectId) console.error('Missing NEXT_PUBLIC_PROJECT_ID');
-  if (!databaseId) console.error('Missing NEXT_PUBLIC_DATABASE_ID');
 
   if (!endpoint || !projectId || !databaseId) {
     console.error('Appwrite configuration is incomplete. Please check your environment variables.');
@@ -32,7 +26,6 @@ const initializeAppwrite = () => {
     storage = new Storage(client);
 
     isInitialized = true;
-    console.log('Appwrite client initialized successfully');
     return true;
   } catch (error) {
     console.error('Failed to initialize Appwrite client:', error);
@@ -41,6 +34,7 @@ const initializeAppwrite = () => {
 };
 
 const ensureInitialized = () => {
+  if (typeof window === 'undefined') return; // Skip initialization on server-side
   if (!isInitialized) {
     const initialized = initializeAppwrite();
     if (!initialized) {
@@ -49,13 +43,28 @@ const ensureInitialized = () => {
   }
 };
 
+export interface Post extends Models.Document {
+  user_id: string;
+  video_url: string;
+  text: string;
+  created_at: string;
+}
+
+export interface Profile extends Models.Document {
+  user_id: string;
+  name: string;
+  image: string;
+}
+
 export const appwriteService = {
   // Authentication
   loginWithGoogle: async () => {
     ensureInitialized();
     try {
-      const googleAuthUrl = account.createOAuth2Session('google', 'http://localhost:3000/auth-callback');
-      window.location.href = googleAuthUrl;
+      const googleAuthUrl = account.createOAuth2Session(OAuthProvider.Google, 'http://localhost:3000/auth-callback');
+      if (typeof window !== 'undefined') {
+        window.location.href = googleAuthUrl.toString();
+      }
     } catch (error) {
       console.error('Appwrite service error: loginWithGoogle', error);
       throw error;
@@ -101,7 +110,7 @@ export const appwriteService = {
   },
 
   // Profile Collection
-  createProfile: async (userId: string, name: string, image: string = '') => {
+  createProfile: async (userId: string, name: string, image: string = ''): Promise<Profile> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_PROFILE as string;
@@ -117,23 +126,23 @@ export const appwriteService = {
     }
   },
 
-  getProfile: async (userId: string) => {
+  getProfile: async (userId: string): Promise<Profile | null> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_PROFILE as string;
-      const response = await databases.listDocuments(
+      const response = await databases.listDocuments<Profile>(
         databaseId,
         collectionId,
         [Query.equal('user_id', userId)]
       );
-      return response.documents[0];
+      return response.documents[0] || null;
     } catch (error) {
       console.error('Appwrite service error: getProfile', error);
       throw error;
     }
   },
 
-  updateProfile: async (profileId: string, data: { name?: string, image?: string }) => {
+  updateProfile: async (profileId: string, data: Partial<Profile>): Promise<Profile> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_PROFILE as string;
@@ -150,30 +159,27 @@ export const appwriteService = {
   },
 
   // Post Collection
-  createPost: async (userId: string, videoUrl: string, caption: string) => {
+  createPost: async (userId: string, videoUrl: string, caption: string): Promise<Post> => {
     ensureInitialized();
     try {
-      console.log('Creating post with:', { userId, videoUrl, caption });
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_POST as string;
-      const response = await databases.createDocument(
+      return await databases.createDocument(
         databaseId,
         collectionId,
         ID.unique(),
         { user_id: userId, video_url: videoUrl, text: caption, created_at: new Date().toISOString() }
       );
-      console.log('Post created successfully. Response:', response);
-      return response;
     } catch (error) {
       console.error('Appwrite service error: createPost', error);
       throw error;
     }
   },
 
-  getPosts: async (limit: number = 10) => {
+  getPosts: async (limit: number = 10): Promise<Post[]> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_POST as string;
-      const response = await databases.listDocuments(
+      const response = await databases.listDocuments<Post>(
         databaseId,
         collectionId,
         [Query.orderDesc('created_at'), Query.limit(limit)]
@@ -185,7 +191,7 @@ export const appwriteService = {
     }
   },
 
-  deletePost: async (postId: string) => {
+  deletePost: async (postId: string): Promise<void> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_POST as string;
@@ -196,7 +202,7 @@ export const appwriteService = {
     }
   },
 
-  updatePost: async (postId: string, data: { text?: string }) => {
+  updatePost: async (postId: string, data: Partial<Post>): Promise<Post> => {
     ensureInitialized();
     try {
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_POST as string;
@@ -212,61 +218,15 @@ export const appwriteService = {
     }
   },
 
-  // Comment Collection
-  createComment: async (userId: string, postId: string, text: string) => {
-    ensureInitialized();
-    try {
-      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
-      return await databases.createDocument(
-        databaseId,
-        collectionId,
-        ID.unique(),
-        { user_id: userId, post_id: postId, text, created_at: new Date().toISOString() }
-      );
-    } catch (error) {
-      console.error('Appwrite service error: createComment', error);
-      throw error;
-    }
-  },
-
-  getComments: async (postId: string) => {
-    ensureInitialized();
-    try {
-      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
-      const response = await databases.listDocuments(
-        databaseId,
-        collectionId,
-        [Query.equal('post_id', postId), Query.orderDesc('created_at')]
-      );
-      return response.documents;
-    } catch (error) {
-      console.error('Appwrite service error: getComments', error);
-      throw error;
-    }
-  },
-
-  deleteComment: async (commentId: string) => {
-    ensureInitialized();
-    try {
-      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
-      await databases.deleteDocument(databaseId, collectionId, commentId);
-    } catch (error) {
-      console.error('Appwrite service error: deleteComment', error);
-      throw error;
-    }
-  },
-
   // File Upload
-  uploadFile: async (file: File) => {
+  uploadFile: async (file: File): Promise<string> => {
     ensureInitialized();
     try {
-      console.log('Uploading file:', file.name);
       const response = await storage.createFile(
         process.env.NEXT_PUBLIC_BUCKET_ID as string,
         ID.unique(),
         file
       );
-      console.log('File uploaded successfully. Response:', response);
       return response.$id;
     } catch (error) {
       console.error('Appwrite service error: uploadFile', error);
@@ -274,7 +234,7 @@ export const appwriteService = {
     }
   },
 
-  deleteFile: async (fileId: string) => {
+  deleteFile: async (fileId: string): Promise<void> => {
     ensureInitialized();
     try {
       await storage.deleteFile(
@@ -287,27 +247,31 @@ export const appwriteService = {
     }
   },
 
-  getFilePreview: (fileId: string) => {
+  getFilePreview: (fileId: string): string => {
     ensureInitialized();
     return storage.getFilePreview(
       process.env.NEXT_PUBLIC_BUCKET_ID as string,
       fileId
-    );
+    ).toString();
   },
 
-  getFileView: (fileId: string) => {
+  getFileView: (fileId: string): string => {
     ensureInitialized();
-    console.log('Getting file view for file ID:', fileId);
     const url = storage.getFileView(
       process.env.NEXT_PUBLIC_BUCKET_ID as string,
       fileId
     );
-    console.log('File view URL:', url.toString());
-    return url.toString(); // Return the URL as a string
+    return url.toString();
   },
 };
 
 export { client, account, databases, storage };
+
+
+
+
+
+
 
 
 

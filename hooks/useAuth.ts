@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { databases, client } from '@/lib/appwrite'
+import { appwriteService } from '@/lib/appwriteService'
 import { useRouter } from 'next/navigation'
-import { ID, Query } from 'appwrite'
+import { Models } from 'appwrite'
 
 export function useAuth() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -13,10 +13,9 @@ export function useAuth() {
 
     const checkUserStatus = async () => {
       try {
-        // Since we've removed Google auth, we'll need to implement a new way to check user status
-        // For now, we'll just set the user to null
+        const currentUser = await appwriteService.getCurrentUser()
         if (mounted) {
-          setUser(null)
+          setUser(currentUser)
         }
       } catch (error) {
         console.error('Session error:', error)
@@ -38,13 +37,19 @@ export function useAuth() {
   }, [])
 
   const logout = async () => {
-    // Implement logout logic if needed
-    setUser(null)
-    router.push('/')
+    try {
+      await appwriteService.logout()
+      setUser(null)
+      router.push('/')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
   }
 
   return { user, loading, logout }
 }
+
+
 
 
 
