@@ -4,27 +4,36 @@ import { useAuth } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Models } from 'appwrite'
 
-export function UserInfo() {
-  const { user, loading } = useAuth()
+// Define a type for the user object
+type User = Models.User<{
+  avatar?: string;
+  username?: string;
+}>
 
-  if (loading) return <div>Loading...</div>
+export function UserInfo() {
+  const { user, isLoading } = useAuth()
+
+  if (isLoading) return <div>Loading...</div>
   if (!user) return null
 
-  const userProfile = user.prefs as { avatar?: string, username?: string }
+  // Cast the user to our defined type
+  const typedUser = user as User
 
   return (
     <div className="flex items-center space-x-2">
       <Avatar>
-        <AvatarImage src={userProfile.avatar || ''} alt={user.name} />
-        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+        <AvatarImage src={typedUser.prefs?.avatar || ''} alt={typedUser.name} />
+        <AvatarFallback>{typedUser.name.charAt(0)}</AvatarFallback>
       </Avatar>
       <div>
-        <p className="text-sm font-medium">{user.name}</p>
-        <p className="text-xs text-gray-500">@{userProfile.username || user.name.toLowerCase().replace(/\s+/g, '')}</p>
+        <p className="text-sm font-medium">{typedUser.name}</p>
+        <p className="text-xs text-gray-500">@{typedUser.prefs?.username || typedUser.name.toLowerCase().replace(/\s+/g, '')}</p>
       </div>
     </div>
   )
 }
+
+
 
 
 

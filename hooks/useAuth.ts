@@ -1,53 +1,62 @@
 import { useState, useEffect } from 'react'
 import { appwriteService } from '@/lib/appwriteService'
-import { useRouter } from 'next/navigation'
 import { Models } from 'appwrite'
 
+type User = Models.User<{
+  avatar?: string;
+  username?: string;
+}>
+
 export function useAuth() {
-  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    let mounted = true
-
-    const checkUserStatus = async () => {
+    const checkUser = async () => {
       try {
         const currentUser = await appwriteService.getCurrentUser()
-        if (mounted) {
-          setUser(currentUser)
-        }
+        setUser(currentUser as User)
       } catch (error) {
-        console.error('Session error:', error)
-        if (mounted) {
-          setUser(null)
-        }
+        console.error('Error checking user:', error)
       } finally {
-        if (mounted) {
-          setLoading(false)
-        }
+        setIsLoading(false)
       }
     }
 
-    checkUserStatus()
-
-    return () => {
-      mounted = false
-    }
+    checkUser()
   }, [])
 
-  const logout = async () => {
+  const login = async () => {
+    setIsLoading(true)
     try {
-      await appwriteService.logout()
-      setUser(null)
-      router.push('/')
+      await appwriteService.loginWithGoogle()
+      const currentUser = await appwriteService.getCurrentUser()
+      setUser(currentUser as User)
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('Login error:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  return { user, loading, logout }
+  const logout = async () => {
+    setIsLoading(true)
+    try {
+      await appwriteService.logout()
+      setUser(null)
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return { user, isLoading, login, logout }
 }
+
+
+
+
 
 
 

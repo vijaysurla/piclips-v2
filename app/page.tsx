@@ -4,44 +4,28 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AiOutlineHeart, AiOutlineComment, AiOutlineShareAlt } from 'react-icons/ai'
 import { BiMusic } from 'react-icons/bi'
-import { appwriteService } from '@/lib/appwriteService'
+import { appwriteService, Post, Profile } from '@/lib/appwriteService'
 
-interface Post {
-  $id: string;
-  user_id: string;
-  video_url: string;
-  text: string;
-  created_at: string;
-  user?: {
-    name: string;
-    username: string;
-    avatar: string;
-  };
+interface EnhancedPost extends Post {
+  user?: Profile;
 }
 
 export default function Home() {
-  const [posts, setPosts] = useState<Post[]>([])
+  const [posts, setPosts] = useState<EnhancedPost[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchPosts = async () => {
       try {
         const fetchedPosts = await appwriteService.getPosts(10)
-        // Map the fetched posts to match the Post interface
-        const formattedPosts: Post[] = fetchedPosts.map(post => ({
-          $id: post.$id,
-          user_id: post.user_id,
-          video_url: post.video_url,
-          text: post.text,
-          created_at: post.created_at,
-          // Add a placeholder user object if needed
-          user: {
-            name: 'User',
-            username: '@user',
-            avatar: '/placeholder.svg'
+        const enhancedPosts = await Promise.all(fetchedPosts.map(async (post) => {
+          const userProfile = await appwriteService.getProfile(post.user_id)
+          return {
+            ...post,
+            user: userProfile || undefined
           }
         }))
-        setPosts(formattedPosts)
+        setPosts(enhancedPosts)
       } catch (error) {
         console.error('Error fetching posts:', error)
       } finally {
@@ -67,7 +51,7 @@ export default function Home() {
                   <Link href={`/profile/${post.user_id}`}>
                     <div className="w-[60px] h-[60px] bg-gray-200 rounded-full overflow-hidden">
                       <img
-                        src={post.user?.avatar || "/placeholder.svg"}
+                        src={post.user?.image ? appwriteService.getFileView(post.user.image) : "/placeholder.svg"}
                         alt="User avatar"
                         className="w-full h-full object-cover"
                       />
@@ -82,7 +66,7 @@ export default function Home() {
                           {post.user?.name || "User"}
                         </span>
                         <span className="text-[14px] text-gray-500 block">
-                          {post.user?.username || "@user"}
+                          @{post.user?.name?.toLowerCase().replace(/\s+/g, '') || "user"}
                         </span>
                       </Link>
                     </div>
@@ -143,6 +127,8 @@ export default function Home() {
     </main>
   )
 }
+
+
 
 
 

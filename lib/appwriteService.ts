@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Storage, ID, Query, Models } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, Models, OAuthProvider } from 'appwrite';
 
 let client: Client;
 let account: Account;
@@ -47,7 +47,7 @@ export interface Post extends Models.Document {
   user_id: string;
   video_url: string;
   text: string;
-  created_at: string;
+    created_at: string;
 }
 
 export interface Profile extends Models.Document {
@@ -70,18 +70,16 @@ export interface Comment extends Models.Document {
 }
 
 export const appwriteService = {
-  // Authentication
   loginWithGoogle: async () => {
     ensureInitialized();
     try {
-      const googleAuthUrl = account.createOAuth2Session(
-        'google',
-        `${process.env.NEXT_PUBLIC_APP_URL}/auth-callback`,
+      const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth-callback`;
+      console.log('Initiating Google login with callback URL:', callbackUrl);
+      await account.createOAuth2Session(
+        OAuthProvider.Google,
+        callbackUrl,
         `${process.env.NEXT_PUBLIC_APP_URL}/auth/failure`
       );
-      if (typeof window !== 'undefined') {
-        window.location.href = googleAuthUrl.toString();
-      }
     } catch (error) {
       console.error('Appwrite service error: loginWithGoogle', error);
       throw error;
@@ -91,12 +89,17 @@ export const appwriteService = {
   handleAuthCallback: async () => {
     ensureInitialized();
     try {
+      console.log('Handling auth callback');
       const user = await account.get();
+      console.log('User authenticated:', user);
+      
       const profile = await appwriteService.getProfile(user.$id);
       
       if (!profile) {
-        // Create a new profile if it doesn't exist
+        console.log('Creating new profile for user:', user.$id);
         await appwriteService.createProfile(user.$id, user.name, '');
+      } else {
+        console.log('Existing profile found for user:', user.$id);
       }
       
       return user;
@@ -179,12 +182,21 @@ export const appwriteService = {
   createPost: async (userId: string, videoUrl: string, caption: string): Promise<Post> => {
     ensureInitialized();
     try {
+      // First get the user's profile to include their name
+      const userProfile = await appwriteService.getProfile(userId);
+      const userName = userProfile?.name || 'User';
+
       const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_POST as string;
       return await databases.createDocument(
         databaseId,
         collectionId,
         ID.unique(),
-        { user_id: userId, video_url: videoUrl, text: caption, created_at: new Date().toISOString() }
+        { 
+          user_id: userId,
+          video_url: videoUrl,
+          text: caption,
+          created_at: new Date().toISOString()
+        }
       );
     } catch (error) {
       console.error('Appwrite service error: createPost', error);
@@ -352,12 +364,12 @@ export const appwriteService = {
     }
   },
 
-  getFilePreview: (fileId: string): URL => {
+  getFilePreview: (fileId: string): string => {
     ensureInitialized();
     return storage.getFilePreview(
       process.env.NEXT_PUBLIC_BUCKET_ID as string,
       fileId
-    );
+    ).toString();
   },
 
   getFileView: (fileId: string): string => {
@@ -371,6 +383,18 @@ export const appwriteService = {
 };
 
 export { client, account, databases, storage };
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
