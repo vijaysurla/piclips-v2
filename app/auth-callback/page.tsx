@@ -13,8 +13,8 @@ export default function AuthCallback() {
         await appwriteService.handleAuthCallback()
         router.push('/')
       } catch (error) {
-        console.error('Error handling auth callback:', error)
-        router.push('/login')
+        console.error('Auth callback error:', error)
+        router.push('/auth/failure')
       }
     }
 
@@ -23,4 +23,6 @@ export default function AuthCallback() {
 
   return <div>Processing authentication...</div>
 }
+
+
 

@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Storage, ID, Query, Models, OAuthProvider } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, Models } from 'appwrite';
 
 let client: Client;
 let account: Account;
@@ -56,12 +56,29 @@ export interface Profile extends Models.Document {
   image: string;
 }
 
+export interface Like extends Models.Document {
+  user_id: string;
+  post_id: string;
+  created_at: string;
+}
+
+export interface Comment extends Models.Document {
+  user_id: string;
+  post_id: string;
+  text: string;
+  created_at: string;
+}
+
 export const appwriteService = {
   // Authentication
   loginWithGoogle: async () => {
     ensureInitialized();
     try {
-      const googleAuthUrl = account.createOAuth2Session(OAuthProvider.Google, 'http://localhost:3000/auth-callback');
+      const googleAuthUrl = account.createOAuth2Session(
+        'google',
+        `${process.env.NEXT_PUBLIC_APP_URL}/auth-callback`,
+        `${process.env.NEXT_PUBLIC_APP_URL}/auth/failure`
+      );
       if (typeof window !== 'undefined') {
         window.location.href = googleAuthUrl.toString();
       }
@@ -118,7 +135,7 @@ export const appwriteService = {
         databaseId,
         collectionId,
         ID.unique(),
-        { user_id: userId, name, image }
+        { user_id: userId, name, image: image || process.env.NEXT_PUBLIC_PLACEHOLDER_DEAFULT_IMAGE_ID }
       );
     } catch (error) {
       console.error('Appwrite service error: createProfile', error);
@@ -218,6 +235,94 @@ export const appwriteService = {
     }
   },
 
+  // Like Collection
+  createLike: async (userId: string, postId: string): Promise<Like> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_LIKE as string;
+      return await databases.createDocument(
+        databaseId,
+        collectionId,
+        ID.unique(),
+        { user_id: userId, post_id: postId, created_at: new Date().toISOString() }
+      );
+    } catch (error) {
+      console.error('Appwrite service error: createLike', error);
+      throw error;
+    }
+  },
+
+  deleteLike: async (likeId: string): Promise<void> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_LIKE as string;
+      await databases.deleteDocument(databaseId, collectionId, likeId);
+    } catch (error) {
+      console.error('Appwrite service error: deleteLike', error);
+      throw error;
+    }
+  },
+
+  getLikes: async (postId: string): Promise<Like[]> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_LIKE as string;
+      const response = await databases.listDocuments<Like>(
+        databaseId,
+        collectionId,
+        [Query.equal('post_id', postId)]
+      );
+      return response.documents;
+    } catch (error) {
+      console.error('Appwrite service error: getLikes', error);
+      throw error;
+    }
+  },
+
+  // Comment Collection
+  createComment: async (userId: string, postId: string, text: string): Promise<Comment> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
+      return await databases.createDocument(
+        databaseId,
+        collectionId,
+        ID.unique(),
+        { user_id: userId, post_id: postId, text, created_at: new Date().toISOString() }
+      );
+    } catch (error) {
+      console.error('Appwrite service error: createComment', error);
+      throw error;
+    }
+  },
+
+  getComments: async (postId: string): Promise<Comment[]> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
+      const response = await databases.listDocuments<Comment>(
+        databaseId,
+        collectionId,
+        [Query.equal('post_id', postId), Query.orderDesc('created_at')]
+      );
+      return response.documents;
+    } catch (error) {
+      console.error('Appwrite service error: getComments', error);
+      throw error;
+    }
+  },
+
+  deleteComment: async (commentId: string): Promise<void> => {
+    ensureInitialized();
+    try {
+      const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_COMMENT as string;
+      await databases.deleteDocument(databaseId, collectionId, commentId);
+    } catch (error) {
+      console.error('Appwrite service error: deleteComment', error);
+      throw error;
+    }
+  },
+
   // File Upload
   uploadFile: async (file: File): Promise<string> => {
     ensureInitialized();
@@ -247,12 +352,12 @@ export const appwriteService = {
     }
   },
 
-  getFilePreview: (fileId: string): string => {
+  getFilePreview: (fileId: string): URL => {
     ensureInitialized();
     return storage.getFilePreview(
       process.env.NEXT_PUBLIC_BUCKET_ID as string,
       fileId
-    ).toString();
+    );
   },
 
   getFileView: (fileId: string): string => {
@@ -266,6 +371,10 @@ export const appwriteService = {
 };
 
 export { client, account, databases, storage };
+
+
+
+
 
 
 
