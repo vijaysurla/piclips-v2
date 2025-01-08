@@ -4,29 +4,69 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { appwriteService } from '@/lib/appwriteService'
 import { Post, Profile } from '@/lib/appwriteService'
+import { useRouter } from 'next/navigation'
 
 interface PostCardProps {
   post: Post
+  currentUser: any // Update this type as needed
 }
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, currentUser }: PostCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isLiked, setIsLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndLikes = async () => {
       try {
         const userProfile = await appwriteService.getProfile(post.user_id)
         setProfile(userProfile)
+
+        const likes = await appwriteService.getLikes(post.$id)
+        setLikeCount(likes.length)
+
+        if (currentUser && currentUser.user) {
+          const userLiked = likes.some(like => like.user_id === currentUser.user.$id)
+          setIsLiked(userLiked)
+        }
       } catch (error) {
-        console.error('Error fetching profile:', error)
+        console.error('Error fetching profile and likes:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchProfile()
-  }, [post.user_id])
+    fetchProfileAndLikes()
+  }, [post.user_id, post.$id, currentUser])
+
+  const handleLike = async () => {
+    if (!currentUser || !currentUser.user) {
+      // Redirect to login or show login prompt
+      router.push('/login')
+      return
+    }
+
+    try {
+      if (isLiked) {
+        // Unlike the post
+        const likes = await appwriteService.getLikes(post.$id)
+        const userLike = likes.find(like => like.user_id === currentUser.user.$id)
+        if (userLike) {
+          await appwriteService.deleteLike(userLike.$id)
+        }
+        setLikeCount(prev => prev - 1)
+      } else {
+        // Like the post
+        await appwriteService.createLike(currentUser.user.$id, post.$id)
+        setLikeCount(prev => prev + 1)
+      }
+      setIsLiked(!isLiked)
+    } catch (error) {
+      console.error('Error handling like:', error)
+    }
+  }
 
   if (loading) {
     return <div>Loading...</div>
@@ -61,10 +101,10 @@ export default function PostCard({ post }: PostCardProps) {
         preload="metadata"
       />
       <div className="flex items-center gap-4 mt-4">
-        <button className="flex items-center gap-1">
-          <span>0</span> likes
+        <button className="flex items-center gap-1" onClick={handleLike}>
+          <span>{likeCount}</span> {isLiked ? 'Unlike' : 'Like'}
         </button>
-        <button className="flex items-center gap-1">
+        <button className="flex items-center gap-1" onClick={() => router.push(`/post/${post.$id}/${post.user_id}`)}>
           <span>0</span> comments
         </button>
         <button className="flex items-center gap-1">
@@ -74,4 +114,14 @@ export default function PostCard({ post }: PostCardProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
 

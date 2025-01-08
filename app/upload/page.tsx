@@ -7,16 +7,19 @@ import { PiKnifeLight } from 'react-icons/pi'
 import { AiOutlineLoading } from 'react-icons/ai'
 import Image from 'next/image'
 import { appwriteService } from '@/lib/appwriteService'
-import { Models } from 'appwrite'
+import { validateVideoFormat, getVideoMetadata, formatFileSize, supportedVideoFormats } from '@/lib/videoUtils'
+import { VideoEditor } from '@/components/VideoEditor'
+import { toast } from "@/components/ui/use-toast"
 
 export default function Upload() {
   const router = useRouter()
-  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [fileDisplay, setFileDisplay] = useState<string>('')
   const [caption, setCaption] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -32,22 +35,49 @@ export default function Upload() {
     checkUser();
   }, [router]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      if (!file.type.startsWith('video/')) {
-        setError('Please select a video file')
+      // Check file format
+      if (!validateVideoFormat(file)) {
+        setError(`Unsupported video format. Please use one of: ${supportedVideoFormats.join(', ')}`)
         return
       }
       
+      // Check file size (2GB limit)
       if (file.size > 2 * 1024 * 1024 * 1024) {
         setError('File size must be less than 2GB')
         return
       }
 
-      setFile(file)
-      setFileDisplay(URL.createObjectURL(file))
-      setError(null)
+      try {
+        // Get video metadata
+        const metadata = await getVideoMetadata(file)
+        
+        // Check video dimensions
+        if (metadata.width < 720 || metadata.height < 1280) {
+          setError('Video resolution must be at least 720x1280')
+          return
+        }
+
+        // Check video duration (10 minutes max)
+        if (metadata.duration > 600) {
+          setError('Video duration must be less than 10 minutes')
+          return
+        }
+
+        setFile(file)
+        setFileDisplay(URL.createObjectURL(file))
+        setError(null)
+
+        toast({
+          title: "Video validated successfully",
+          description: `Size: ${formatFileSize(file.size)}, Duration: ${Math.round(metadata.duration)}s`,
+        })
+      } catch (err) {
+        setError('Failed to validate video. Please try another file.')
+        console.error('Video validation error:', err)
+      }
     }
   }
 
@@ -70,7 +100,7 @@ export default function Upload() {
   }
 
   const handlePost = async () => {
-    if (!file) {
+    if (!file && !fileDisplay) {
       setError('Please select a video')
       return
     }
@@ -90,13 +120,22 @@ export default function Upload() {
       setError(null)
 
       // Upload the video file
-      const fileId = await appwriteService.uploadFile(file)
+      let fileToUpload: File;
+      if (file instanceof File) {
+        fileToUpload = file;
+      } else if (fileDisplay) {
+        const blob = await fetch(fileDisplay).then(r => r.blob());
+        fileToUpload = new File([blob], 'video.mp4', { type: 'video/mp4' });
+      } else {
+        throw new Error('No file to upload');
+      }
+      const fileId = await appwriteService.uploadFile(fileToUpload)
 
       // Get the file URL
       const fileViewUrl = appwriteService.getFileView(fileId)
 
       // Create the post
-      await appwriteService.createPost(user.$id, fileViewUrl, caption)
+      await appwriteService.createPost(user.user.$id, fileViewUrl, caption)
 
       router.push('/')
     } catch (err) {
@@ -134,13 +173,13 @@ export default function Upload() {
                 </p>
                 <p className="text-gray-500 text-[13px]">Or drag and drop a file</p>
                 <ul className="mt-8 text-gray-400 text-[13px] space-y-1">
-                  <li>MP4 or WebM</li>
+                  <li>MP4, WebM, or OGG</li>
                   <li>720x1280 resolution or higher</li>
                   <li>Up to 10 minutes</li>
                   <li>Less than 2 GB</li>
                 </ul>
                 <button 
-                  className="mt-8 px-8 py-2.5 text-white bg-[#F02C56] rounded-sm"
+                  className="mt-8 px-8 py-2.5 text-white bg-[#d6191e] hover:bg-[#d6191e]/90 rounded-sm transition-colors"
                   onClick={(e) => {
                     e.stopPropagation()
                     triggerFileInput()
@@ -152,7 +191,7 @@ export default function Upload() {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept="video/*"
+                  accept="video/mp4,video/webm,video/ogg"
                   onChange={handleFileChange}
                 />
               </div>
@@ -176,11 +215,11 @@ export default function Upload() {
                     muted
                   />
                   <Image
-                    src="/images/tiktok-logo.png"
-                    alt="TikTok Logo"
-                    width={40}
-                    height={40}
-                    className="absolute bottom-4 right-4 z-30"
+                    src="/images/iclips-logo-transparent.png"
+                    alt="PiClips Logo"
+                    width={60}
+                    height={60}
+                    className="absolute bottom-4 right-4 z-30 bg-white bg-opacity-50 rounded-full p-1"
                     priority
                   />
                 </div>
@@ -210,7 +249,10 @@ export default function Upload() {
                   <PiKnifeLight size={20} className="text-gray-600" />
                   <span className="font-semibold">Divide videos and edit</span>
                 </div>
-                <button className="text-[#F02C56] font-semibold">
+                <button 
+                  className="text-[#d6191e] font-semibold"
+                  onClick={() => setIsEditing(true)}
+                >
                   Edit
                 </button>
               </div>
@@ -235,7 +277,7 @@ export default function Upload() {
             </div>
 
             {error && (
-              <div className="text-[#F02C56] text-sm">{error}</div>
+              <div className="text-[#d6191e] text-sm">{error}</div>
             )}
 
             <div className="flex items-center gap-4">
@@ -248,7 +290,7 @@ export default function Upload() {
               <button 
                 onClick={handlePost}
                 disabled={!file || isUploading}
-                className="px-8 py-2.5 text-white bg-[#F02C56] rounded-sm disabled:opacity-50 min-w-[100px] flex items-center justify-center"
+                className="px-8 py-2.5 text-white bg-[#d6191e] hover:bg-[#d6191e]/90 rounded-sm disabled:opacity-50 min-w-[100px] flex items-center justify-center transition-colors"
               >
                 {isUploading ? (
                   <AiOutlineLoading className="animate-spin" size={20} />
@@ -260,9 +302,31 @@ export default function Upload() {
           </div>
         </div>
       </div>
+      {isEditing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-lg max-w-3xl w-full">
+            <VideoEditor
+              videoSrc={fileDisplay}
+              onSave={(editedVideo) => {
+                setFileDisplay(URL.createObjectURL(editedVideo))
+                setIsEditing(false)
+              }}
+              onCancel={() => setIsEditing(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+
+
+
+
+
+
+
 
 
 

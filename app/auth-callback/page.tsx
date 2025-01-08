@@ -12,8 +12,8 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       try {
         console.log('Auth callback initiated');
-        await appwriteService.handleAuthCallback()
-        console.log('Auth callback successful, redirecting to home');
+        const { user, profile } = await appwriteService.handleAuthCallback()
+        console.log('Auth callback successful, user:', user, 'profile:', profile);
         router.push('/')
       } catch (error) {
         console.error('Auth callback error:', error)
@@ -49,6 +49,8 @@ export default function AuthCallback() {
     </div>
   )
 }
+
+
 
 
 

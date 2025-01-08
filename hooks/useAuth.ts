@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { appwriteService } from '@/lib/appwriteService'
 import { Models } from 'appwrite'
+import { Profile } from '@/lib/appwriteService'
 
-type User = Models.User<{
-  avatar?: string;
-  username?: string;
-}>
+type User = {
+  user: Models.User<Models.Preferences>;
+  profile: Profile | null;
+}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -15,7 +16,7 @@ export function useAuth() {
     const checkUser = async () => {
       try {
         const currentUser = await appwriteService.getCurrentUser()
-        setUser(currentUser as User)
+        setUser(currentUser)
       } catch (error) {
         console.error('Error checking user:', error)
       } finally {
@@ -31,7 +32,7 @@ export function useAuth() {
     try {
       await appwriteService.loginWithGoogle()
       const currentUser = await appwriteService.getCurrentUser()
-      setUser(currentUser as User)
+      setUser(currentUser)
     } catch (error) {
       console.error('Login error:', error)
     } finally {
@@ -53,6 +54,10 @@ export function useAuth() {
 
   return { user, isLoading, login, logout }
 }
+
+
+
+
 
 
 

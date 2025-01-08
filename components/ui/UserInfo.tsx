@@ -2,13 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Models } from 'appwrite'
-
-// Define a type for the user object
-type User = Models.User<{
-  avatar?: string;
-  username?: string;
-}>
+import { appwriteService } from '@/lib/appwriteService'
 
 export function UserInfo() {
   const { user, isLoading } = useAuth()
@@ -16,22 +10,39 @@ export function UserInfo() {
   if (isLoading) return <div>Loading...</div>
   if (!user) return null
 
-  // Cast the user to our defined type
-  const typedUser = user as User
+  const avatarSrc = user.profile?.image 
+    ? appwriteService.getFileView(user.profile.image)
+    : undefined
 
   return (
     <div className="flex items-center space-x-2">
       <Avatar>
-        <AvatarImage src={typedUser.prefs?.avatar || ''} alt={typedUser.name} />
-        <AvatarFallback>{typedUser.name.charAt(0)}</AvatarFallback>
+        <AvatarImage src={avatarSrc} alt={user.user.name} />
+        <AvatarFallback>{user.user.name.charAt(0).toUpperCase()}</AvatarFallback>
       </Avatar>
       <div>
-        <p className="text-sm font-medium">{typedUser.name}</p>
-        <p className="text-xs text-gray-500">@{typedUser.prefs?.username || typedUser.name.toLowerCase().replace(/\s+/g, '')}</p>
+        <p className="text-sm font-medium">{user.user.name}</p>
+        <p className="text-xs text-gray-500">@{user.profile?.name || user.user.name.toLowerCase().replace(/\s+/g, '')}</p>
       </div>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

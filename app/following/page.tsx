@@ -19,7 +19,7 @@ interface EnhancedPost extends Post {
   isFollowing: boolean;
 }
 
-export default function Home() {
+export default function Following() {
   const [posts, setPosts] = useState<EnhancedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -39,16 +39,22 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    const fetchPosts = async () => {
+    const fetchFollowedPosts = async () => {
+      if (!currentUser || !currentUser.user) {
+        setLoading(false)
+        return
+      }
+
       try {
-        const fetchedPosts = await appwriteService.getPosts(10)
-        const enhancedPosts = await Promise.all(fetchedPosts.map(async (post) => {
+        const followedUsers = await appwriteService.getFollowedUsers(currentUser.user.$id)
+        const allPosts = await appwriteService.getPosts(100)
+        const followedPosts = allPosts.filter(post => followedUsers.includes(post.user_id))
+
+        const enhancedPosts = await Promise.all(followedPosts.map(async (post) => {
           const userProfile = await appwriteService.getProfile(post.user_id)
           const likeCount = await appwriteService.getLikeCount(post.$id)
           const commentCount = await appwriteService.getCommentCount(post.$id)
-          const likes = await appwriteService.getLikes(post.$id)
-          const isLiked = currentUser && currentUser.user ? likes.some(like => like.user_id === currentUser.user.$id) : false
-          const isFollowing = currentUser && currentUser.user ? await appwriteService.isFollowing(currentUser.user.$id, post.user_id) : false
+          const isLiked = await appwriteService.hasUserLikedPost(currentUser.user.$id, post.$id)
 
           return {
             ...post,
@@ -56,69 +62,39 @@ export default function Home() {
             likeCount,
             commentCount,
             isLiked,
-            isFollowing
+            isFollowing: true
           }
         }))
+
         setPosts(enhancedPosts)
         setSoundStates(enhancedPosts.reduce((acc, post) => ({...acc, [post.$id]: false}), {}))
       } catch (error) {
-        console.error('Error fetching posts:', error)
+        console.error('Error fetching followed posts:', error)
       } finally {
         setLoading(false)
       }
     }
 
     if (currentUser) {
-      fetchPosts()
+      fetchFollowedPosts()
     }
   }, [currentUser])
 
-  useEffect(() => {
-    const options = {
-      root: null,
-      rootMargin: '0px',
-      threshold: 0.5,
-    }
-
-    const handleIntersect = (entries: IntersectionObserverEntry[]) => {
-      entries.forEach((entry) => {
-        const video = entry.target as HTMLVideoElement
-        if (entry.isIntersecting) {
-          video.play().catch((error) => console.error('Error playing video:', error))
-        } else {
-          video.pause()
-        }
-      })
-    }
-
-    observerRef.current = new IntersectionObserver(handleIntersect, options)
-
-    Object.values(videoRefs.current).forEach((video) => {
-      if (video) observerRef.current?.observe(video)
-    })
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
-  }, [posts])
-
   const handleLike = async (post: EnhancedPost) => {
     if (!currentUser || !currentUser.user) {
-      router.push('/login');
-      return;
+      router.push('/login')
+      return
     }
 
     try {
       if (post.isLiked) {
-        const likes = await appwriteService.getLikes(post.$id);
-        const userLike = likes.find(like => like.user_id === currentUser.user.$id);
+        const likes = await appwriteService.getLikes(post.$id)
+        const userLike = likes.find(like => like.user_id === currentUser.user.$id)
         if (userLike) {
-          await appwriteService.deleteLike(userLike.$id);
+          await appwriteService.deleteLike(userLike.$id)
         }
       } else {
-        await appwriteService.createLike(currentUser.user.$id, post.$id);
+        await appwriteService.createLike(currentUser.user.$id, post.$id)
       }
 
       setPosts(prevPosts => prevPosts.map(p => {
@@ -127,45 +103,14 @@ export default function Home() {
             ...p,
             likeCount: post.isLiked ? p.likeCount - 1 : p.likeCount + 1,
             isLiked: !p.isLiked
-          };
+          }
         }
-        return p;
-      }));
+        return p
+      }))
     } catch (error) {
-      console.error('Error handling like:', error);
+      console.error('Error handling like:', error)
     }
-  };
-
-  const handleFollow = async (post: EnhancedPost) => {
-    if (!currentUser || !currentUser.user) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      setPosts(prevPosts => prevPosts.map(p => {
-        if (p.user_id === post.user_id) {
-          return { ...p, isFollowing: !p.isFollowing };
-        }
-        return p;
-      }));
-
-      if (post.isFollowing) {
-        await appwriteService.unfollowUser(currentUser.user.$id, post.user_id);
-      } else {
-        await appwriteService.followUser(currentUser.user.$id, post.user_id);
-      }
-    } catch (error) {
-      console.error('Error handling follow:', error);
-      // Revert the optimistic update if there's an error
-      setPosts(prevPosts => prevPosts.map(p => {
-        if (p.user_id === post.user_id) {
-          return { ...p, isFollowing: !p.isFollowing };
-        }
-        return p;
-      }));
-    }
-  };
+  }
 
   const toggleSound = (postId: string) => {
     const video = videoRefs.current[postId]
@@ -186,6 +131,16 @@ export default function Home() {
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <h2 className="text-2xl font-bold mb-4">No posts from followed users</h2>
+        <p className="text-gray-600 mb-4">Start following users to see their posts here!</p>
+        <Button onClick={() => router.push('/')}>Explore Posts</Button>
+      </div>
+    )
   }
 
   return (
@@ -218,20 +173,6 @@ export default function Home() {
                         </span>
                       </Link>
                     </div>
-                    {currentUser && currentUser.user && currentUser.user.$id !== post.user_id && (
-                      <Button
-                        onClick={() => handleFollow(post)}
-                        variant={post.isFollowing ? "outline" : "default"}
-                        size="lg"
-                        className={`${
-                          post.isFollowing
-                            ? "border-[#1a1819] hover:bg-[#1a1819] hover:text-white"
-                            : "bg-[#d6191e] hover:bg-[#d6191e]/90 text-white"
-                        }`}
-                      >
-                        {post.isFollowing ? 'Following' : 'Follow'}
-                      </Button>
-                    )}
                   </div>
                   <div className="text-[15px] mb-4">
                     {post.text}
@@ -327,79 +268,6 @@ export default function Home() {
     </main>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
