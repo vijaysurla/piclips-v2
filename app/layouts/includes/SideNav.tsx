@@ -152,10 +152,10 @@ export default function SideNav() {
           <Separator className="hidden lg:block my-2" />
 
           <div className="hidden lg:block text-[11px] text-gray-500">
-            <p className="px-2 py-1">iiClips: Bringing the Pi Community Together Through Creative Expression</p>
+            <p className="px-2 py-1">22/7Clips: Bringing the Pi Community Together Through Creative Expression</p>
             <p className="px-2 py-1">Short-form video platform for the Pi community. Share your talents, passions, and daily life with the world.</p>
             <p className="px-2 py-1">Explore trending challenges, participate in contests, and earn rewards.</p>
-            <p className="px-2 py-1">© 2024 iiClips</p>
+            <p className="px-2 py-1">© 2024 22/7Clips</p>
           </div>
         </div>
       </ScrollArea>

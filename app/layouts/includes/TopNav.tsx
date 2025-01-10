@@ -48,7 +48,7 @@ export default function TopNav() {
     <div className="fixed top-0 w-full bg-white z-30 border-b h-[60px]">
       <div className="flex items-center justify-between h-full px-4 mx-auto max-w-[1150px]">
         <Link href="/">
-          <img className="w-[115px]" src="/images/iclips-logo-transparent.png" alt="PiClips" />
+          <img className="w-[115px]" src="/images/piclips-logo-transparent-3.png" alt="PiClips" />
         </Link>
 
         <div className="flex-grow mx-4">

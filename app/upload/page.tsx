@@ -215,7 +215,7 @@ export default function Upload() {
                     muted
                   />
                   <Image
-                    src="/images/iclips-logo-transparent.png"
+                    src="/images/piclips-logo-transparent-3.png"
                     alt="PiClips Logo"
                     width={60}
                     height={60}

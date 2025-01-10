@@ -109,15 +109,39 @@ export const appwriteService = {
   loginWithGoogle: async () => {
     ensureInitialized();
     try {
-      const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth-callback`;
-      console.log('Initiating Google login with callback URL:', callbackUrl);
+      // Use the current URL as the success URL
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL;
+      const successUrl = `${currentOrigin}/auth-callback`;
+      const failureUrl = `${currentOrigin}/auth-callback?error=true`;
+      
+      console.log('Initiating Google login with callback URL:', successUrl);
       await account.createOAuth2Session(
         OAuthProvider.Google,
-        callbackUrl,
-        `${process.env.NEXT_PUBLIC_APP_URL}/auth-callback?error=true`
+        successUrl,
+        failureUrl
       );
     } catch (error) {
       console.error('Appwrite service error: loginWithGoogle', error);
+      throw error;
+    }
+  },
+
+  login: async () => {
+    ensureInitialized();
+    try {
+      // Use the current URL as the success URL
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL;
+      const successUrl = `${currentOrigin}/auth-callback`;
+      const failureUrl = `${currentOrigin}/auth-callback?error=true`;
+      
+      console.log('Initiating Google login with callback URL:', successUrl);
+      await account.createOAuth2Session(
+        OAuthProvider.Google,
+        successUrl,
+        failureUrl
+      );
+    } catch (error) {
+      console.error('Appwrite service error: login', error);
       throw error;
     }
   },
@@ -721,7 +745,18 @@ export const appwriteService = {
   },
 };
 
+export default appwriteService;
 export { client, account, databases, storage };
+
+
+
+
+
+
+
+
+
+
 
 
 
