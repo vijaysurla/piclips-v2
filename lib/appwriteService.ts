@@ -109,10 +109,17 @@ export const appwriteService = {
   loginWithGoogle: async () => {
     ensureInitialized();
     try {
-      // Use the current URL as the success URL
-      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL;
-      const successUrl = `${currentOrigin}/auth-callback`;
-      const failureUrl = `${currentOrigin}/auth-callback?error=true`;
+      // Get the current hostname to handle both www and non-www versions
+      const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'piclips.com';
+      const isWWW = currentHostname.startsWith('www.');
+      const baseHostname = isWWW ? currentHostname.slice(4) : currentHostname;
+      
+      // Use the appropriate URL based on the environment
+      const successUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000/auth-callback'
+        : `https://${baseHostname}/auth-callback`;
+      
+      const failureUrl = `${successUrl}?error=true`;
       
       console.log('Initiating Google login with callback URL:', successUrl);
       await account.createOAuth2Session(
@@ -129,10 +136,17 @@ export const appwriteService = {
   login: async () => {
     ensureInitialized();
     try {
-      // Use the current URL as the success URL
-      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL;
-      const successUrl = `${currentOrigin}/auth-callback`;
-      const failureUrl = `${currentOrigin}/auth-callback?error=true`;
+      // Get the current hostname to handle both www and non-www versions
+      const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'piclips.com';
+      const isWWW = currentHostname.startsWith('www.');
+      const baseHostname = isWWW ? currentHostname.slice(4) : currentHostname;
+      
+      // Use the appropriate URL based on the environment
+      const successUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000/auth-callback'
+        : `https://${baseHostname}/auth-callback`;
+      
+      const failureUrl = `${successUrl}?error=true`;
       
       console.log('Initiating Google login with callback URL:', successUrl);
       await account.createOAuth2Session(
@@ -747,6 +761,8 @@ export const appwriteService = {
 
 export default appwriteService;
 export { client, account, databases, storage };
+
+
 
 
 
